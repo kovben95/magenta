@@ -624,22 +624,13 @@ CONFIG_MAP['groovae_2bar_hits_control_tfds'] = Config(
     tfds_name='groove/2bar-midionly'
 )
 
+from magenta.models.music_vae import transformer_models
+
 CONFIG_MAP['attention-vae'] = Config(
     model=MusicVAE(
-        lstm_models.BidirectionalLstmEncoder(),
-        lstm_models.HierarchicalLstmDecoder(
-            lstm_models.SplitMultiOutLstmDecoder(
-                core_decoders=[
-                    lstm_models.CategoricalLstmDecoder(),
-                    lstm_models.CategoricalLstmDecoder(),
-                    lstm_models.CategoricalLstmDecoder()],
-                output_depths=[
-                    90,  # melody
-                    90,  # bass
-                    512,  # drums
-                ]),
-            level_lengths=[16, 16],
-            disable_autoregression=True)),
+        transformer_models.TransformerEncoder(),
+        transformer_models.TransformerDecoder(),
+        ),
     hparams=merge_hparams(
         lstm_models.get_default_hparams(),
         HParams(
