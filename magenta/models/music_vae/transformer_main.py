@@ -32,15 +32,12 @@ from absl import flags
 import tensorflow as tf
 # pylint: enable=g-bad-import-order
 
-from official.transformer import compute_bleu
-from official.transformer import translate
 from official.transformer.model import model_params
 from official.transformer.model import transformer
 from official.transformer.utils import dataset
 from official.transformer.utils import metrics
 from official.transformer.utils import schedule
 from official.transformer.utils import tokenizer
-from official.utils.accelerator import tpu as tpu_util
 from official.utils.export import export
 from official.utils.flags import core as flags_core
 from official.utils.logs import hooks_helper
@@ -49,11 +46,10 @@ from official.utils.misc import distribution_utils
 from official.utils.misc import model_helpers
 
 PARAMS_MAP = {
-    "tiny": model_params.TINY_PARAMS,
-    "base": model_params.BASE_PARAMS,
-    "big": model_params.BIG_PARAMS,
+  "tiny": model_params.TINY_PARAMS,
+  "base": model_params.BASE_PARAMS,
+  "big": model_params.BIG_PARAMS,
 }
-
 
 DEFAULT_TRAIN_EPOCHS = 10
 INF = int(1e9)
@@ -62,8 +58,8 @@ BLEU_DIR = "bleu"
 # Dictionary containing tensors that are logged by the logging hooks. Each item
 # maps a string to the tensor name.
 TENSORS_TO_LOG = {
-    "learning_rate": "model/get_train_op/learning_rate/learning_rate",
-    "cross_entropy_loss": "model/cross_entropy"}
+  "learning_rate": "model/get_train_op/learning_rate/learning_rate",
+  "cross_entropy_loss": "model/cross_entropy"}
 
 
 def model_fn(features, labels, mode, params):
@@ -80,11 +76,11 @@ def model_fn(features, labels, mode, params):
     # is the prediction
     if mode == tf.estimator.ModeKeys.PREDICT:
       return tf.estimator.EstimatorSpec(
-          tf.estimator.ModeKeys.PREDICT,
-          predictions=logits,
-          export_outputs={
-              "translate": tf.estimator.export.PredictOutput(logits)
-          })
+        tf.estimator.ModeKeys.PREDICT,
+        predictions=logits,
+        export_outputs={
+          "translate": tf.estimator.export.PredictOutput(logits)
+        })
 
     # Explicitly set the shape of the logits for XLA (TPU). This is needed
     # because the logits are passed back to the host VM CPU for metric
@@ -99,7 +95,7 @@ def model_fn(features, labels, mode, params):
     # xentropy contains the cross entropy loss of every nonpadding token in the
     # targets.
     xentropy, weights = metrics.padded_cross_entropy_loss(
-        logits, targets, params["label_smoothing"], params["vocab_size"])
+      logits, targets, params["label_smoothing"], params["vocab_size"])
     loss = tf.reduce_sum(xentropy) / tf.reduce_sum(weights)
 
     # Save loss as named tensor that will be logged with the logging hook.
@@ -107,8 +103,8 @@ def model_fn(features, labels, mode, params):
 
     if mode == tf.estimator.ModeKeys.EVAL:
       return tf.estimator.EstimatorSpec(
-          mode=mode, loss=loss, predictions={"predictions": logits},
-          eval_metric_ops=metrics.get_eval_metrics(logits, labels, params))
+        mode=mode, loss=loss, predictions={"predictions": logits},
+        eval_metric_ops=metrics.get_eval_metrics(logits, labels, params))
     else:
       train_op, metric_dict = get_train_op_and_metrics(loss, params)
 
@@ -148,30 +144,30 @@ def get_train_op_and_metrics(loss, params):
   """Generate training op and metrics to save in TensorBoard."""
   with tf.variable_scope("get_train_op"):
     learning_rate = get_learning_rate(
-        learning_rate=params["learning_rate"],
-        hidden_size=params["hidden_size"],
-        learning_rate_warmup_steps=params["learning_rate_warmup_steps"])
+      learning_rate=params["learning_rate"],
+      hidden_size=params["hidden_size"],
+      learning_rate_warmup_steps=params["learning_rate_warmup_steps"])
 
     # Create optimizer. Use LazyAdamOptimizer from TF contrib, which is faster
     # than the TF core Adam optimizer.
     optimizer = tf.contrib.opt.LazyAdamOptimizer(
-        learning_rate,
-        beta1=params["optimizer_adam_beta1"],
-        beta2=params["optimizer_adam_beta2"],
-        epsilon=params["optimizer_adam_epsilon"])
+      learning_rate,
+      beta1=params["optimizer_adam_beta1"],
+      beta2=params["optimizer_adam_beta2"],
+      epsilon=params["optimizer_adam_epsilon"])
 
     # Uses automatic mixed precision FP16 training if on GPU.
     if params["dtype"] == "fp16":
       optimizer = tf.train.experimental.enable_mixed_precision_graph_rewrite(
-          optimizer)
+        optimizer)
 
     # Calculate and apply gradients using LazyAdamOptimizer.
     global_step = tf.train.get_global_step()
     tvars = tf.trainable_variables()
     gradients = optimizer.compute_gradients(
-        loss, tvars, colocate_gradients_with_ops=True)
+      loss, tvars, colocate_gradients_with_ops=True)
     minimize_op = optimizer.apply_gradients(
-        gradients, global_step=global_step, name="train")
+      gradients, global_step=global_step, name="train")
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     train_op = tf.group(minimize_op, update_ops)
 
@@ -183,38 +179,9 @@ def get_train_op_and_metrics(loss, params):
     return train_op, train_metrics
 
 
-def translate_and_compute_bleu(estimator, subtokenizer, bleu_source, bleu_ref):
-  """Translate file and report the cased and uncased bleu scores."""
-  # Create temporary file to store translation.
-  tmp = tempfile.NamedTemporaryFile(delete=False)
-  tmp_filename = tmp.name
-
-  translate.translate_file(
-      estimator, subtokenizer, bleu_source, output_file=tmp_filename,
-      print_all_translations=False)
-
-  # Compute uncased and cased bleu scores.
-  uncased_score = compute_bleu.bleu_wrapper(bleu_ref, tmp_filename, False)
-  cased_score = compute_bleu.bleu_wrapper(bleu_ref, tmp_filename, True)
-  os.remove(tmp_filename)
-  return uncased_score, cased_score
-
-
 def get_global_step(estimator):
   """Return estimator's last checkpoint."""
   return int(estimator.latest_checkpoint().split("-")[-1])
-
-
-def evaluate_and_log_bleu(estimator, bleu_source, bleu_ref, vocab_file):
-  """Calculate and record the BLEU score."""
-  subtokenizer = tokenizer.Subtokenizer(vocab_file)
-
-  uncased_score, cased_score = translate_and_compute_bleu(
-      estimator, subtokenizer, bleu_source, bleu_ref)
-
-  tf.logging.info("Bleu score (uncased): %f", uncased_score)
-  tf.logging.info("Bleu score (cased): %f", cased_score)
-  return uncased_score, cased_score
 
 
 def _validate_file(filepath):
@@ -224,8 +191,7 @@ def _validate_file(filepath):
 
 
 def run_loop(
-    estimator, schedule_manager, train_hooks=None, benchmark_logger=None,
-    bleu_source=None, bleu_ref=None, bleu_threshold=None, vocab_file=None):
+    estimator, schedule_manager, train_hooks=None, benchmark_logger=None):
   """Train and evaluate model, and optionally compute model's BLEU score.
 
   **Step vs. Epoch vs. Iteration**
@@ -254,14 +220,10 @@ def run_loop(
     schedule_manager: A schedule.Manager object to guide the run loop.
     train_hooks: List of hooks to pass to the estimator during training.
     benchmark_logger: a BenchmarkLogger object that logs evaluation data
-    bleu_source: File containing text to be translated for BLEU calculation.
-    bleu_ref: File containing reference translations for BLEU calculation.
-    bleu_threshold: minimum BLEU score before training is stopped.
-    vocab_file: Path to vocab file that will be used to subtokenize bleu_source.
 
   Returns:
     Dict of results of the run.  Contains the keys `eval_results`,
-    `train_hooks`, `bleu_cased`, and `bleu_uncased`. `train_hooks` is a list the
+    `train_hooks`, . `train_hooks` is a list the
     instances of hooks used during training.
 
   Raises:
@@ -269,41 +231,14 @@ def run_loop(
       single_iteration_train_epochs were defined.
     NotFoundError: if the vocab file or bleu files don't exist.
   """
-  if bleu_source:
-    _validate_file(bleu_source)
-  if bleu_ref:
-    _validate_file(bleu_ref)
-  if vocab_file:
-    _validate_file(vocab_file)
-
-  evaluate_bleu = bleu_source is not None and bleu_ref is not None
-  if evaluate_bleu and schedule_manager.use_tpu:
-    raise ValueError("BLEU score can not be computed when training with a TPU, "
-                     "as it requires estimator.predict which is not yet "
-                     "supported.")
 
   # Print details of training schedule.
   tf.logging.info("Training schedule:")
   tf.logging.info(
-      "\t1. Train for {}".format(schedule_manager.train_increment_str))
+    "\t1. Train for {}".format(schedule_manager.train_increment_str))
   tf.logging.info("\t2. Evaluate model.")
-  if evaluate_bleu:
-    tf.logging.info("\t3. Compute BLEU score.")
-    if bleu_threshold is not None:
-      tf.logging.info("Repeat above steps until the BLEU score reaches %f" %
-                      bleu_threshold)
-  if not evaluate_bleu or bleu_threshold is None:
-    tf.logging.info("Repeat above steps %d times." %
-                    schedule_manager.train_eval_iterations)
-
-  if evaluate_bleu:
-    # Create summary writer to log bleu score (values can be displayed in
-    # Tensorboard).
-    bleu_writer = tf.summary.FileWriter(
-        os.path.join(estimator.model_dir, BLEU_DIR))
-    if bleu_threshold is not None:
-      # Change loop stopping condition if bleu_threshold is defined.
-      schedule_manager.train_eval_iterations = INF
+  tf.logging.info("Repeat above steps %d times." %
+                  schedule_manager.train_eval_iterations)
 
   # Loop training/evaluation/bleu cycles
   stats = {}
@@ -313,13 +248,13 @@ def run_loop(
     # Train the model for single_iteration_train_steps or until the input fn
     # runs out of examples (if single_iteration_train_steps is None).
     estimator.train(
-        dataset.train_input_fn,
-        steps=schedule_manager.single_iteration_train_steps,
-        hooks=train_hooks)
+      dataset.train_input_fn,
+      steps=schedule_manager.single_iteration_train_steps,
+      hooks=train_hooks)
 
     eval_results = estimator.evaluate(
-        input_fn=dataset.eval_input_fn,
-        steps=schedule_manager.single_iteration_eval_steps)
+      input_fn=dataset.eval_input_fn,
+      steps=schedule_manager.single_iteration_eval_steps)
 
     tf.logging.info("Evaluation results (iter %d/%d):" %
                     (i + 1, schedule_manager.train_eval_iterations))
@@ -331,30 +266,6 @@ def run_loop(
     # bleu score must be computed using the estimator.predict() path, which
     # outputs translations that are not based on golden values. The translations
     # are compared to reference file to get the actual bleu score.
-    if evaluate_bleu:
-      uncased_score, cased_score = evaluate_and_log_bleu(
-          estimator, bleu_source, bleu_ref, vocab_file)
-
-      stats["bleu_uncased"] = uncased_score
-      stats["bleu_cased"] = cased_score
-
-      # Write actual bleu scores using summary writer and benchmark logger
-      global_step = get_global_step(estimator)
-      summary = tf.Summary(value=[
-          tf.Summary.Value(tag="bleu/uncased", simple_value=uncased_score),
-          tf.Summary.Value(tag="bleu/cased", simple_value=cased_score),
-      ])
-      bleu_writer.add_summary(summary, global_step)
-      bleu_writer.flush()
-      benchmark_logger.log_metric(
-          "bleu_uncased", uncased_score, global_step=global_step)
-      benchmark_logger.log_metric(
-          "bleu_cased", cased_score, global_step=global_step)
-
-      # Stop training if bleu stopping threshold is met.
-      if model_helpers.past_stop_threshold(bleu_threshold, uncased_score):
-        bleu_writer.close()
-        break
 
   stats["eval_results"] = eval_results
   stats["train_hooks"] = train_hooks
@@ -366,18 +277,18 @@ def define_transformer_flags():
   """Add flags and flag validators for running transformer_main."""
   # Add common flags (data_dir, model_dir, train_epochs, etc.).
   flags.DEFINE_integer(
-      name="max_length", short_name="ml", default=None,
-      help=flags_core.help_wrap("Max length."))
+    name="max_length", short_name="ml", default=None,
+    help=flags_core.help_wrap("Max length."))
 
   flags_core.define_base()
   flags_core.define_performance(
-      num_parallel_calls=True,
-      inter_op=False,
-      intra_op=False,
-      synthetic_data=True,
-      max_train_steps=False,
-      dtype=True,
-      all_reduce_alg=True
+    num_parallel_calls=True,
+    inter_op=False,
+    intra_op=False,
+    synthetic_data=True,
+    max_train_steps=False,
+    dtype=True,
+    all_reduce_alg=True
   )
   flags_core.define_benchmark()
   flags_core.define_device(tpu=True)
@@ -389,57 +300,35 @@ def define_transformer_flags():
 
   # Add transformer-specific flags
   flags.DEFINE_enum(
-      name="param_set", short_name="mp", default="big",
-      enum_values=PARAMS_MAP.keys(),
-      help=flags_core.help_wrap(
-          "Parameter set to use when creating and training the model. The "
-          "parameters define the input shape (batch size and max length), "
-          "model configuration (size of embedding, # of hidden layers, etc.), "
-          "and various other settings. The big parameter set increases the "
-          "default batch size, embedding/hidden size, and filter size. For a "
-          "complete list of parameters, please see model/model_params.py."))
+    name="param_set", short_name="mp", default="big",
+    enum_values=PARAMS_MAP.keys(),
+    help=flags_core.help_wrap(
+      "Parameter set to use when creating and training the model. The "
+      "parameters define the input shape (batch size and max length), "
+      "model configuration (size of embedding, # of hidden layers, etc.), "
+      "and various other settings. The big parameter set increases the "
+      "default batch size, embedding/hidden size, and filter size. For a "
+      "complete list of parameters, please see model/model_params.py."))
 
   flags.DEFINE_bool(
-      name="static_batch", default=False,
-      help=flags_core.help_wrap(
-          "Whether the batches in the dataset should have static shapes. In "
-          "general, this setting should be False. Dynamic shapes allow the "
-          "inputs to be grouped so that the number of padding tokens is "
-          "minimized, and helps model training. In cases where the input shape "
-          "must be static (e.g. running on TPU), this setting will be ignored "
-          "and static batching will always be used."))
+    name="static_batch", default=False,
+    help=flags_core.help_wrap(
+      "Whether the batches in the dataset should have static shapes. In "
+      "general, this setting should be False. Dynamic shapes allow the "
+      "inputs to be grouped so that the number of padding tokens is "
+      "minimized, and helps model training. In cases where the input shape "
+      "must be static (e.g. running on TPU), this setting will be ignored "
+      "and static batching will always be used."))
 
   # Flags for training with steps (may be used for debugging)
   flags.DEFINE_integer(
-      name="train_steps", short_name="ts", default=None,
-      help=flags_core.help_wrap("The number of steps used to train."))
+    name="train_steps", short_name="ts", default=None,
+    help=flags_core.help_wrap("The number of steps used to train."))
   flags.DEFINE_integer(
-      name="steps_between_evals", short_name="sbe", default=1000,
-      help=flags_core.help_wrap(
-          "The Number of training steps to run between evaluations. This is "
-          "used if --train_steps is defined."))
-
-  # BLEU score computation
-  flags.DEFINE_string(
-      name="bleu_source", short_name="bls", default=None,
-      help=flags_core.help_wrap(
-          "Path to source file containing text translate when calculating the "
-          "official BLEU score. Both --bleu_source and --bleu_ref must be set. "
-          "Use the flag --stop_threshold to stop the script based on the "
-          "uncased BLEU score."))
-  flags.DEFINE_string(
-      name="bleu_ref", short_name="blr", default=None,
-      help=flags_core.help_wrap(
-          "Path to source file containing text translate when calculating the "
-          "official BLEU score. Both --bleu_source and --bleu_ref must be set. "
-          "Use the flag --stop_threshold to stop the script based on the "
-          "uncased BLEU score."))
-  flags.DEFINE_string(
-      name="vocab_file", short_name="vf", default=None,
-      help=flags_core.help_wrap(
-          "Path to subtoken vocabulary file. If data_download.py was used to "
-          "download and encode the training data, look in the data_dir to find "
-          "the vocab file."))
+    name="steps_between_evals", short_name="sbe", default=1000,
+    help=flags_core.help_wrap(
+      "The Number of training steps to run between evaluations. This is "
+      "used if --train_steps is defined."))
 
   flags_core.set_defaults(data_dir="/tmp/translate_ende",
                           model_dir="/tmp/transformer_model",
@@ -447,35 +336,11 @@ def define_transformer_flags():
                           train_epochs=None)
 
   @flags.multi_flags_validator(
-      ["train_epochs", "train_steps"],
-      message="Both --train_steps and --train_epochs were set. Only one may be "
-              "defined.")
+    ["train_epochs", "train_steps"],
+    message="Both --train_steps and --train_epochs were set. Only one may be "
+            "defined.")
   def _check_train_limits(flag_dict):
     return flag_dict["train_epochs"] is None or flag_dict["train_steps"] is None
-
-  @flags.multi_flags_validator(
-      ["bleu_source", "bleu_ref"],
-      message="Both or neither --bleu_source and --bleu_ref must be defined.")
-  def _check_bleu_files(flags_dict):
-    return (flags_dict["bleu_source"] is None) == (
-        flags_dict["bleu_ref"] is None)
-
-  @flags.multi_flags_validator(
-      ["bleu_source", "bleu_ref", "vocab_file"],
-      message="--vocab_file must be defined if --bleu_source and --bleu_ref "
-              "are defined.")
-  def _check_bleu_vocab_file(flags_dict):
-    if flags_dict["bleu_source"] and flags_dict["bleu_ref"]:
-      return flags_dict["vocab_file"] is not None
-    return True
-
-  @flags.multi_flags_validator(
-      ["export_dir", "vocab_file"],
-      message="--vocab_file must be defined if --export_dir is set.")
-  def _check_export_vocab_file(flags_dict):
-    if flags_dict["export_dir"]:
-      return flags_dict["vocab_file"] is not None
-    return True
 
   flags_core.require_cloud_storage(["data_dir", "model_dir", "export_dir"])
 
@@ -492,13 +357,12 @@ def construct_estimator(flags_obj, params, schedule_manager):
     An estimator object to be used for training and eval.
   """
   distribution_strategy = distribution_utils.get_distribution_strategy(
-      distribution_strategy=flags_obj.distribution_strategy,
-      num_gpus=flags_core.get_num_gpus(flags_obj),
-      all_reduce_alg=flags_obj.all_reduce_alg)
+    distribution_strategy=flags_obj.distribution_strategy,
+    num_gpus=flags_core.get_num_gpus(flags_obj),
+    all_reduce_alg=flags_obj.all_reduce_alg)
   return tf.estimator.Estimator(
-      model_fn=model_fn, model_dir=flags_obj.model_dir, params=params,
-      config=tf.estimator.RunConfig(train_distribute=distribution_strategy))
-
+    model_fn=model_fn, model_dir=flags_obj.model_dir, params=params,
+    config=tf.estimator.RunConfig(train_distribute=distribution_strategy))
 
 
 def run_transformer(flags_obj):
@@ -509,7 +373,7 @@ def run_transformer(flags_obj):
 
   Returns:
     Dict of results of the run.  Contains the keys `eval_results`,
-    `train_hooks`, `bleu_cased`, and `bleu_uncased`. `train_hooks` is a list the
+    `train_hooks`, `train_hooks` is a list the
     instances of hooks used during training.
   """
   num_gpus = flags_core.get_num_gpus(flags_obj)
@@ -526,9 +390,8 @@ def run_transformer(flags_obj):
   params["model_dir"] = flags_obj.model_dir
   params["num_parallel_calls"] = flags_obj.num_parallel_calls
 
-  params["tpu"] = flags_obj.tpu
-  params["use_tpu"] = bool(flags_obj.tpu)  # was a tpu specified.
-  params["static_batch"] = flags_obj.static_batch or params["use_tpu"]
+  params["use_tpu"] = False  # was a tpu specified.
+  params["static_batch"] = flags_obj.static_batch
   params["allow_ffn_pad"] = not params["use_tpu"]
 
   params["max_length"] = flags_obj.max_length or params["max_length"]
@@ -544,15 +407,15 @@ def run_transformer(flags_obj):
   params["batch_size"] = distribution_utils.per_replica_batch_size(params["batch_size"], num_gpus)
 
   schedule_manager = schedule.Manager(
-      train_steps=flags_obj.train_steps,
-      steps_between_evals=flags_obj.steps_between_evals,
-      train_epochs=flags_obj.train_epochs,
-      epochs_between_evals=flags_obj.epochs_between_evals,
-      default_train_epochs=DEFAULT_TRAIN_EPOCHS,
-      batch_size=params["batch_size"],
-      max_length=params["max_length"],
-      use_tpu=params["use_tpu"],
-      num_tpu_shards=flags_obj.num_tpu_shards
+    train_steps=flags_obj.train_steps,
+    steps_between_evals=flags_obj.steps_between_evals,
+    train_epochs=flags_obj.train_epochs,
+    epochs_between_evals=flags_obj.epochs_between_evals,
+    default_train_epochs=DEFAULT_TRAIN_EPOCHS,
+    batch_size=params["batch_size"],
+    max_length=params["max_length"],
+    use_tpu=params["use_tpu"],
+    num_tpu_shards=0
   )
 
   params["repeat_dataset"] = schedule_manager.repeat_dataset
@@ -561,36 +424,31 @@ def run_transformer(flags_obj):
 
   # Create hooks that log information about the training and metric values
   train_hooks = hooks_helper.get_train_hooks(
-      flags_obj.hooks,
-      model_dir=flags_obj.model_dir,
-      tensors_to_log=TENSORS_TO_LOG,  # used for logging hooks
-      batch_size=total_batch_size,  # for ExamplesPerSecondHook
-      use_tpu=params["use_tpu"]  # Not all hooks can run with TPUs
+    flags_obj.hooks,
+    model_dir=flags_obj.model_dir,
+    tensors_to_log=TENSORS_TO_LOG,  # used for logging hooks
+    batch_size=total_batch_size,  # for ExamplesPerSecondHook
+    use_tpu=params["use_tpu"]  # Not all hooks can run with TPUs
   )
   benchmark_logger = logger.get_benchmark_logger()
   benchmark_logger.log_run_info(
-      model_name="transformer",
-      dataset_name="wmt_translate_ende",
-      run_params=params,
-      test_id=flags_obj.benchmark_test_id)
+    model_name="transformer",
+    dataset_name="wmt_translate_ende",
+    run_params=params,
+    test_id=flags_obj.benchmark_test_id)
 
   # Train and evaluate transformer model
   estimator = construct_estimator(flags_obj, params, schedule_manager)
   stats = run_loop(
-      estimator=estimator,
-      # Training arguments
-      schedule_manager=schedule_manager,
-      train_hooks=train_hooks,
-      benchmark_logger=benchmark_logger,
-      # BLEU calculation arguments
-      bleu_source=flags_obj.bleu_source,
-      bleu_ref=flags_obj.bleu_ref,
-      bleu_threshold=flags_obj.stop_threshold,
-      vocab_file=flags_obj.vocab_file)
+    estimator=estimator,
+    # Training arguments
+    schedule_manager=schedule_manager,
+    train_hooks=train_hooks,
+    benchmark_logger=benchmark_logger)
 
   if flags_obj.export_dir and not params["use_tpu"]:
     serving_input_fn = export.build_tensor_serving_input_receiver_fn(
-        shape=[None], dtype=tf.int64, batch_size=None)
+      shape=[None], dtype=tf.int64, batch_size=None)
     # Export saved model, and save the vocab file as an extra asset. The vocab
     # file is saved to allow consistent input encoding and output decoding.
     # (See the "Export trained model" section in the README for an example of
@@ -598,9 +456,9 @@ def run_transformer(flags_obj):
     # Since the model itself does not use the vocab file, this file is saved as
     # an extra asset rather than a core asset.
     estimator.export_savedmodel(
-        flags_obj.export_dir, serving_input_fn,
-        assets_extra={"vocab.txt": flags_obj.vocab_file},
-        strip_default_attrs=True)
+      flags_obj.export_dir, serving_input_fn,
+      assets_extra={"vocab.txt": flags_obj.vocab_file},
+      strip_default_attrs=True)
   return stats
 
 
