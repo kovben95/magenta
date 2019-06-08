@@ -260,9 +260,9 @@ CONFIG_MAP['flat-trio_16bar'] = Config(
         HParams(
             batch_size=256,
             max_seq_len=256,
-            z_size=512,
-            enc_rnn_size=[2048, 2048],
-            dec_rnn_size=[2048, 2048, 2048],
+            z_size=128,
+            enc_rnn_size=[128, 128],
+            dec_rnn_size=[128, 128, 128],
         )),
     note_sequence_augmenter=None,
     data_converter=trio_16bar_converter,
