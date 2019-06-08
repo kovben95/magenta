@@ -270,6 +270,30 @@ CONFIG_MAP['flat-trio_16bar'] = Config(
     eval_examples_path=None,
 )
 
+CONFIG_MAP['attention-trio_16bar'] = Config(
+    model=MusicVAE(
+        lstm_models.BidirectionalLstmEncoder(),
+        lstm_models.MultiOutCategoricalLstmDecoder(
+            output_depths=[
+                90,  # melody
+                90,  # bass
+                512,  # drums
+            ])),
+    hparams=merge_hparams(
+        lstm_models.get_default_hparams(),
+        HParams(
+            batch_size=256,
+            max_seq_len=256,
+            z_size=128,
+            enc_rnn_size=[128, 128],
+            dec_rnn_size=[128, 128, 128],
+        )),
+    note_sequence_augmenter=None,
+    data_converter=trio_16bar_converter,
+    train_examples_path=None,
+    eval_examples_path=None,
+)
+
 CONFIG_MAP['hierdec-trio_16bar'] = Config(
     model=MusicVAE(
         lstm_models.BidirectionalLstmEncoder(),

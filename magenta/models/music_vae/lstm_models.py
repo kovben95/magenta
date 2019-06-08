@@ -132,6 +132,17 @@ class BidirectionalLstmEncoder(base_model.BaseEncoder):
                 [layer_size], hparams.dropout_keep_prob,
                 hparams.residual_encoder, is_training))
 
+        def add_attention(cell):
+          # return cell
+          from tensorflow.contrib.rnn import AttentionCellWrapper
+          return AttentionCellWrapper(cell, attn_length=40, attn_size=128, attn_vec_size=128, state_is_tuple=True)
+
+        for c in range(len(cells_fw)):
+          cells_fw[i] = add_attention(cells_fw[i])
+
+        for c in range(len(cells_bw)):
+          cells_bw[i] = add_attention(cells_bw[i])
+
     self._cells = (cells_fw, cells_bw)
 
   def encode(self, sequence, sequence_length):
@@ -165,8 +176,8 @@ class BidirectionalLstmEncoder(base_model.BaseEncoder):
           scope=self._name_or_scope)
       # Note we access the outputs (h) from the states since the backward
       # ouputs are reversed to the input order in the returned outputs.
-      last_h_fw = states_fw[-1][-1].h
-      last_h_bw = states_bw[-1][-1].h
+      last_h_fw = states_fw[-1][0][0][-1].h
+      last_h_bw = states_bw[-1][0][0][-1].h
 
     return tf.concat([last_h_fw, last_h_bw], 1)
 
