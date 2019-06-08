@@ -55,6 +55,8 @@ class Transformer(object):
     """
     self.train = train
     self.params = params
+    self.last_encoder_outputs = None
+    self.last_attention_bias = None
 
     self.embedding_softmax_layer = embedding_layer.EmbeddingSharedWeights(
         params["vocab_size"], params["hidden_size"],
@@ -97,6 +99,50 @@ class Transformer(object):
       else:
         logits = self.decode(targets, encoder_outputs, attention_bias)
         return logits
+
+  def call_reconstruction_loss(self, x_input, x_target, x_length, z=None,
+                          c_input=None):
+
+    inputs = x_input
+    targets = x_target
+
+    initializer = tf.variance_scaling_initializer(
+      self.params["initializer_gain"], mode="fan_avg", distribution="uniform")
+    with tf.variable_scope("Transformer", initializer=initializer):
+      # Calculate attention bias for encoder self-attention and decoder
+      # multi-headed attention layers.
+      attention_bias = model_utils.get_padding_bias(inputs)
+
+      # Run the inputs through the encoder layer to map the symbol
+      # representations to continuous representations.
+      encoder_outputs = self.encode(inputs, attention_bias)
+
+      # Generate output sequence if targets is None, or return logits if target
+      # sequence is known.
+      logits = self.decode(targets, encoder_outputs, attention_bias)
+      return logits
+
+
+  def call_encode(self, sequence, sequence_length):
+    inputs = sequence
+
+    # region copied from __call__
+    # Variance scaling is used here because it seems to work in many problems.
+    # Other reasonable initializers may also work just as well.
+    initializer = tf.variance_scaling_initializer(
+        self.params["initializer_gain"], mode="fan_avg", distribution="uniform")
+    with tf.variable_scope("Transformer", initializer=initializer):
+      # Calculate attention bias for encoder self-attention and decoder
+      # multi-headed attention layers.
+      attention_bias = model_utils.get_padding_bias(inputs)
+
+      # Run the inputs through the encoder layer to map the symbol
+      # representations to continuous representations.
+      encoder_outputs = self.encode(inputs, attention_bias)
+      self.last_encoder_outputs = encoder_outputs
+      self.last_attention_bias = attention_bias
+      return encoder_outputs
+    #endregion region copied from __call__
 
   def encode(self, inputs, attention_bias):
     """Generate continuous representation for inputs.
@@ -202,6 +248,22 @@ class Transformer(object):
       logits = tf.squeeze(logits, axis=[1])
       return logits, cache
     return symbols_to_logits_fn
+
+  def call_sample(self):
+    """Sample from decoder with an optional conditional latent vector `z`.
+
+    Args:
+      n: Scalar number of samples to return.
+      max_length: (Optional) Scalar maximum sample length to return. Required if
+        data representation does not include end tokens.
+      z: (Optional) Latent vectors to sample from. Required if model is
+        conditional. Sized `[n, z_size]`.
+      c_input: (Optional) Control sequence, sized `[max_length, control_depth]`.
+
+    Returns:
+      samples: Sampled sequences. Sized `[n, max_length, output_depth]`.
+    """
+    return self.predict(self.last_encoder_outputs, self.last_attention_bias)
 
   def predict(self, encoder_outputs, encoder_decoder_attention_bias):
     """Return predicted sequence."""

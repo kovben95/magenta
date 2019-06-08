@@ -37,7 +37,6 @@ from official.transformer.model import transformer
 from official.transformer.utils import dataset
 from official.transformer.utils import metrics
 from official.transformer.utils import schedule
-from official.transformer.utils import tokenizer
 from official.utils.export import export
 from official.utils.flags import core as flags_core
 from official.utils.logs import hooks_helper
@@ -376,35 +375,9 @@ def run_transformer(flags_obj):
     `train_hooks`, `train_hooks` is a list the
     instances of hooks used during training.
   """
-  num_gpus = flags_core.get_num_gpus(flags_obj)
-
-  # Add flag-defined parameters to params object
-  params = PARAMS_MAP[flags_obj.param_set]
-  if num_gpus > 1:
-    if flags_obj.param_set == "big":
-      params = model_params.BIG_MULTI_GPU_PARAMS
-    elif flags_obj.param_set == "base":
-      params = model_params.BASE_MULTI_GPU_PARAMS
-
-  params["data_dir"] = flags_obj.data_dir
-  params["model_dir"] = flags_obj.model_dir
-  params["num_parallel_calls"] = flags_obj.num_parallel_calls
-
-  params["use_tpu"] = False  # was a tpu specified.
-  params["static_batch"] = flags_obj.static_batch
-  params["allow_ffn_pad"] = not params["use_tpu"]
-
-  params["max_length"] = flags_obj.max_length or params["max_length"]
-
-  params["use_synthetic_data"] = flags_obj.use_synthetic_data
-
-  # Set batch size parameter, which depends on the availability of
-  # TPU and GPU, and distribution settings.
-  params["batch_size"] = (flags_obj.batch_size or (params["default_batch_size"]))
+  params = get_params(flags_obj)
 
   total_batch_size = params["batch_size"]
-
-  params["batch_size"] = distribution_utils.per_replica_batch_size(params["batch_size"], num_gpus)
 
   schedule_manager = schedule.Manager(
     train_steps=flags_obj.train_steps,
@@ -446,7 +419,7 @@ def run_transformer(flags_obj):
     train_hooks=train_hooks,
     benchmark_logger=benchmark_logger)
 
-  if flags_obj.export_dir and not params["use_tpu"]:
+  if flags_obj.export_dir:
     serving_input_fn = export.build_tensor_serving_input_receiver_fn(
       shape=[None], dtype=tf.int64, batch_size=None)
     # Export saved model, and save the vocab file as an extra asset. The vocab
@@ -460,6 +433,30 @@ def run_transformer(flags_obj):
       assets_extra={"vocab.txt": flags_obj.vocab_file},
       strip_default_attrs=True)
   return stats
+
+
+def get_params(flags_obj):
+  num_gpus = flags_core.get_num_gpus(flags_obj)
+  # Add flag-defined parameters to params object
+  params = PARAMS_MAP[flags_obj.param_set]
+  if num_gpus > 1:
+    if flags_obj.param_set == "big":
+      params = model_params.BIG_MULTI_GPU_PARAMS
+    elif flags_obj.param_set == "base":
+      params = model_params.BASE_MULTI_GPU_PARAMS
+  params["data_dir"] = flags_obj.data_dir
+  params["model_dir"] = flags_obj.model_dir
+  params["num_parallel_calls"] = flags_obj.num_parallel_calls
+  params["use_tpu"] = False  # was a tpu specified.
+  params["static_batch"] = flags_obj.static_batch
+  params["allow_ffn_pad"] = not params["use_tpu"]
+  params["max_length"] = flags_obj.max_length or params["max_length"]
+  params["use_synthetic_data"] = flags_obj.use_synthetic_data
+  # Set batch size parameter, which depends on the availability of
+  # TPU and GPU, and distribution settings.
+  params["batch_size"] = (flags_obj.batch_size or (params["default_batch_size"]))
+  params["batch_size"] = distribution_utils.per_replica_batch_size(params["batch_size"], num_gpus)
+  return params
 
 
 def main(_):
