@@ -282,11 +282,11 @@ CONFIG_MAP['attention-trio_16bar'] = Config(
     hparams=merge_hparams(
         lstm_models.get_default_hparams(),
         HParams(
-            batch_size=256,
-            max_seq_len=128,
+            batch_size=64,
+            max_seq_len=64,
             z_size=64,
-            enc_rnn_size=[128, 128],
-            dec_rnn_size=[64, 64, 64],
+            enc_rnn_size=[16, 16],
+            dec_rnn_size=[16, 16, 16],
         )),
     note_sequence_augmenter=None,
     data_converter=trio_16bar_converter,
