@@ -24,7 +24,7 @@ from magenta.common import merge_hparams
 from magenta.models.music_vae import data
 from magenta.models.music_vae import data_hierarchical
 from magenta.models.music_vae import lstm_models
-from magenta.models.music_vae.base_model import MusicVAE
+from magenta.models.music_vae.base_model import MusicVAE, MusicVAETransformer
 import magenta.music as mm
 from tensorflow.contrib.training import HParams
 
@@ -624,13 +624,8 @@ CONFIG_MAP['groovae_2bar_hits_control_tfds'] = Config(
     tfds_name='groove/2bar-midionly'
 )
 
-from magenta.models.music_vae import transformer_models
-
 CONFIG_MAP['attention-vae'] = Config(
-    model=MusicVAE(
-        transformer_models.TransformerEncoder(),
-        transformer_models.TransformerDecoder(),
-        ),
+    model=MusicVAETransformer(),
     hparams=merge_hparams(
         lstm_models.get_default_hparams(),
         HParams(
