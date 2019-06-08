@@ -138,7 +138,6 @@ class Transformer(object):
 
       # Run the inputs through the encoder layer to map the symbol
       # representations to continuous representations.
-      print('-------------INPUTS---------------')
       print(inputs)
       encoder_outputs = self.encode(inputs, attention_bias)
       self.last_encoder_outputs = encoder_outputs

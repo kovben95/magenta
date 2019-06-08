@@ -413,10 +413,10 @@ class MusicVAETransformer(object):
     hparams = self.hparams
     z_size = hparams.z_size
 
-    sequence = tf.to_float(sequence)
-    if control_sequence is not None:
-      control_sequence = tf.to_float(control_sequence)
-      sequence = tf.concat([sequence, control_sequence], axis=-1)
+    # sequence = tf.to_float(sequence)
+    # if control_sequence is not None:
+    #   control_sequence = tf.to_float(control_sequence)
+    #   sequence = tf.concat([sequence, control_sequence], axis=-1)
     encoder_output = self.transformer.call_encode(sequence, sequence_length)  # custom function create from __call__()
 
     mu = tf.layers.dense(
@@ -439,8 +439,8 @@ class MusicVAETransformer(object):
     hparams = self.hparams
     batch_size = hparams.batch_size
 
-    input_sequence = tf.to_float(input_sequence)
-    output_sequence = tf.to_float(output_sequence)
+    # input_sequence = tf.to_float(input_sequence)
+    # output_sequence = tf.to_float(output_sequence)
 
     max_seq_len = tf.minimum(tf.shape(output_sequence)[1], hparams.max_seq_len)
 
