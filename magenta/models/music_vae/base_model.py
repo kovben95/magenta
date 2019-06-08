@@ -199,16 +199,16 @@ class MusicVAE(object):
     encoder_output = self.encoder.encode(sequence, sequence_length)
 
     mu = tf.layers.dense(
-        encoder_output,
-        z_size,
-        name='encoder/mu',
-        kernel_initializer=tf.random_normal_initializer(stddev=0.001))
+      encoder_output,
+      z_size,
+      name='encoder/mu',
+      kernel_initializer=tf.random_normal_initializer(stddev=0.001))
     sigma = tf.layers.dense(
-        encoder_output,
-        z_size,
-        activation=tf.nn.softplus,
-        name='encoder/sigma',
-        kernel_initializer=tf.random_normal_initializer(stddev=0.001))
+      encoder_output,
+      z_size,
+      activation=tf.nn.softplus,
+      name='encoder/sigma',
+      kernel_initializer=tf.random_normal_initializer(stddev=0.001))
 
     return ds.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
 
@@ -247,7 +247,7 @@ class MusicVAE(object):
 
       # Prior distribution.
       p_z = ds.MultivariateNormalDiag(
-          loc=[0.] * hparams.z_size, scale_diag=[1.] * hparams.z_size)
+        loc=[0.] * hparams.z_size, scale_diag=[1.] * hparams.z_size)
 
       # KL Divergence (nats)
       kl_div = ds.kl_divergence(q_z, p_z)
@@ -258,7 +258,7 @@ class MusicVAE(object):
       z = None
 
     r_loss, metric_map = self.decoder.reconstruction_loss(
-        x_input, x_target, x_length, z, control_sequence)[0:2]
+      x_input, x_target, x_length, z, control_sequence)[0:2]
 
     free_nats = hparams.free_bits * tf.math.log(2.0)
     kl_cost = tf.maximum(kl_div - free_nats, 0)
@@ -268,11 +268,11 @@ class MusicVAE(object):
     self.loss = tf.reduce_mean(r_loss) + beta * tf.reduce_mean(kl_cost)
 
     scalars_to_summarize = {
-        'loss': self.loss,
-        'losses/r_loss': r_loss,
-        'losses/kl_loss': kl_cost,
-        'losses/kl_bits': kl_div / tf.math.log(2.0),
-        'losses/kl_beta': beta,
+      'loss': self.loss,
+      'losses/r_loss': r_loss,
+      'losses/kl_loss': kl_cost,
+      'losses/kl_bits': kl_div / tf.math.log(2.0),
+      'losses/kl_beta': beta,
     }
     return metric_map, scalars_to_summarize
 
@@ -294,7 +294,7 @@ class MusicVAE(object):
     """
 
     _, scalars_to_summarize = self._compute_model_loss(
-        input_sequence, output_sequence, sequence_length, control_sequence)
+      input_sequence, output_sequence, sequence_length, control_sequence)
 
     hparams = self.hparams
     lr = ((hparams.learning_rate - hparams.min_learning_rate) *
@@ -324,13 +324,13 @@ class MusicVAE(object):
       metric_update_ops: tf.metrics update ops.
     """
     metric_map, scalars_to_summarize = self._compute_model_loss(
-        input_sequence, output_sequence, sequence_length, control_sequence)
+      input_sequence, output_sequence, sequence_length, control_sequence)
 
     for n, t in scalars_to_summarize.iteritems():
       metric_map[n] = tf.metrics.mean(t)
 
     metrics_to_values, metrics_to_updates = (
-        tf.contrib.metrics.aggregate_metric_map(metric_map))
+      tf.contrib.metrics.aggregate_metric_map(metric_map))
 
     for metric_name, metric_value in metrics_to_values.iteritems():
       tf.summary.scalar(metric_name, metric_value)
@@ -341,15 +341,15 @@ class MusicVAE(object):
     """Sample with an optional conditional embedding `z`."""
     if z is not None and z.shape[0].value != n:
       raise ValueError(
-          '`z` must have a first dimension that equals `n` when given. '
-          'Got: %d vs %d' % (z.shape[0].value, n))
+        '`z` must have a first dimension that equals `n` when given. '
+        'Got: %d vs %d' % (z.shape[0].value, n))
 
     if self.hparams.z_size and z is None:
       tf.logging.warning(
-          'Sampling from conditional model without `z`. Using random `z`.')
+        'Sampling from conditional model without `z`. Using random `z`.')
       normal_shape = [n, self.hparams.z_size]
       normal_dist = tfp.distributions.Normal(
-          loc=tf.zeros(normal_shape), scale=tf.ones(normal_shape))
+        loc=tf.zeros(normal_shape), scale=tf.ones(normal_shape))
       z = normal_dist.sample()
 
     return self.decoder.sample(n, max_length, z, c_input, **kwargs)
@@ -357,18 +357,18 @@ class MusicVAE(object):
 
 def get_default_hparams():
   return tf.contrib.training.HParams(
-      max_seq_len=32,  # Maximum sequence length. Others will be truncated.
-      z_size=32,  # Size of latent vector z.
-      free_bits=0.0,  # Bits to exclude from KL loss per dimension.
-      max_beta=1.0,  # Maximum KL cost weight, or cost if not annealing.
-      beta_rate=0.0,  # Exponential rate at which to anneal KL cost.
-      batch_size=512,  # Minibatch size.
-      grad_clip=1.0,  # Gradient clipping. Recommend leaving at 1.0.
-      clip_mode='global_norm',  # value or global_norm.
-      # If clip_mode=global_norm and global_norm is greater than this value,
-      # the gradient will be clipped to 0, effectively ignoring the step.
-      grad_norm_clip_to_zero=10000,
-      learning_rate=0.001,  # Learning rate.
-      decay_rate=0.9999,  # Learning rate decay per minibatch.
-      min_learning_rate=0.00001,  # Minimum learning rate.
+    max_seq_len=32,  # Maximum sequence length. Others will be truncated.
+    z_size=32,  # Size of latent vector z.
+    free_bits=0.0,  # Bits to exclude from KL loss per dimension.
+    max_beta=1.0,  # Maximum KL cost weight, or cost if not annealing.
+    beta_rate=0.0,  # Exponential rate at which to anneal KL cost.
+    batch_size=512,  # Minibatch size.
+    grad_clip=1.0,  # Gradient clipping. Recommend leaving at 1.0.
+    clip_mode='global_norm',  # value or global_norm.
+    # If clip_mode=global_norm and global_norm is greater than this value,
+    # the gradient will be clipped to 0, effectively ignoring the step.
+    grad_norm_clip_to_zero=10000,
+    learning_rate=0.001,  # Learning rate.
+    decay_rate=0.9999,  # Learning rate decay per minibatch.
+    min_learning_rate=0.00001,  # Minimum learning rate.
   )
