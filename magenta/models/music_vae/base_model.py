@@ -383,12 +383,12 @@ class MusicVAETransformer(object):
     tf.logging.info('Building MusicVAE model with Transformer, and hparams:\n%s', hparams.values())
 
     with logger.benchmark_context(flags.FLAGS):
-      get_params(flags.FLAGS)
+      params = get_params(flags.FLAGS)
 
-    self.transformer = Transformer(hparams, is_training)  # TODO: append proper 'hparams'
+      self.transformer = Transformer(params, is_training)  # TODO: append proper 'hparams'
 
-    self.global_step = tf.train.get_or_create_global_step()  # TODO: WTF
-    self._hparams = hparams
+      self.global_step = tf.train.get_or_create_global_step()  # TODO: WTF
+      self._hparams = hparams
 
   @property
   def hparams(self):
