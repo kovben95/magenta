@@ -243,7 +243,7 @@ def evaluate(train_dir,
         train_dir,
         eval_ops=eval_op,
         hooks=hooks,
-        eval_interval_secs=60,
+        eval_interval_secs=1200,
         master=master)
 
 
