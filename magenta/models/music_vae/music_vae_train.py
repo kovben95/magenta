@@ -211,7 +211,7 @@ def train(train_dir,
           logdir=train_dir,
           scaffold=scaffold,
           hooks=hooks,
-          save_checkpoint_secs=1200,
+          save_checkpoint_secs=600,
           master=master,
           is_chief=is_chief)
 
@@ -243,7 +243,7 @@ def evaluate(train_dir,
         train_dir,
         eval_ops=eval_op,
         hooks=hooks,
-        eval_interval_secs=1200,
+        eval_interval_secs=600,
         master=master)
 
 
