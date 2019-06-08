@@ -135,7 +135,7 @@ class BidirectionalLstmEncoder(base_model.BaseEncoder):
         def add_attention(cell):
           # return cell
           from tensorflow.contrib.rnn import AttentionCellWrapper
-          return AttentionCellWrapper(cell, attn_length=40, attn_size=128, attn_vec_size=128, state_is_tuple=True)
+          return AttentionCellWrapper(cell, attn_length=40)
 
         for c in range(len(cells_fw)):
           cells_fw[i] = add_attention(cells_fw[i])
