@@ -80,6 +80,14 @@ class LstmEncoder(base_model.BaseEncoder):
       return outputs[-1]
 
 
+def add_attention(cell, hparams):
+  if 'attn_length' not in hparams.values():
+    return cell
+  else:
+    from tensorflow.contrib.rnn import AttentionCellWrapper
+    return AttentionCellWrapper(cell, attn_length=hparams.values()['attn_length'])
+
+
 class BidirectionalLstmEncoder(base_model.BaseEncoder):
   """Bidirectional LSTM Encoder."""
 
@@ -132,19 +140,6 @@ class BidirectionalLstmEncoder(base_model.BaseEncoder):
             lstm_utils.rnn_cell(
                 [layer_size], hparams.dropout_keep_prob,
                 hparams.residual_encoder, is_training))
-
-        def add_attention(cell):
-          if 'attn_length' not in hparams.values():
-            return cell
-          else:
-            from tensorflow.contrib.rnn import AttentionCellWrapper
-            return AttentionCellWrapper(cell, attn_length=hparams.values()['attn_length'], reuse=True)
-
-        for c in range(len(cells_fw)):
-          cells_fw[i] = add_attention(cells_fw[i])
-
-        for c in range(len(cells_bw)):
-          cells_bw[i] = add_attention(cells_bw[i])
 
     self._cells = (cells_fw, cells_bw)
 
@@ -316,9 +311,10 @@ class BaseLstmDecoder(base_model.BaseDecoder):
     self._output_depth = output_depth
     self._output_layer = layers_core.Dense(
         output_depth, name='output_projection')
-    self._dec_cell = lstm_utils.rnn_cell(
+
+    self._dec_cell = add_attention(lstm_utils.rnn_cell(
         hparams.dec_rnn_size, hparams.dropout_keep_prob,
-        hparams.residual_decoder, is_training)
+        hparams.residual_decoder, is_training), hparams)
     if hparams.use_cudnn:
       self._cudnn_dec_lstm = lstm_utils.cudnn_lstm_layer(
           hparams.dec_rnn_size, hparams.dropout_keep_prob, is_training,
