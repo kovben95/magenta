@@ -90,6 +90,7 @@ class BidirectionalLstmEncoder(base_model.BaseEncoder):
     return self._cells[0][-1].output_size + self._cells[1][-1].output_size
 
   def build(self, hparams, is_training=True, name_or_scope='encoder'):
+    self.hparams = hparams
     if hparams.use_cudnn and hparams.residual_decoder:
       raise ValueError('Residual connections not supported in cuDNN.')
 
@@ -133,9 +134,11 @@ class BidirectionalLstmEncoder(base_model.BaseEncoder):
                 hparams.residual_encoder, is_training))
 
         def add_attention(cell):
-          # return cell
-          from tensorflow.contrib.rnn import AttentionCellWrapper
-          return AttentionCellWrapper(cell, attn_length=40)
+          if 'attn_length' not in hparams.values():
+            return cell
+          else:
+            from tensorflow.contrib.rnn import AttentionCellWrapper
+            return AttentionCellWrapper(cell, attn_length=hparams.values()['attn_length'])
 
         for c in range(len(cells_fw)):
           cells_fw[i] = add_attention(cells_fw[i])
@@ -176,8 +179,13 @@ class BidirectionalLstmEncoder(base_model.BaseEncoder):
           scope=self._name_or_scope)
       # Note we access the outputs (h) from the states since the backward
       # ouputs are reversed to the input order in the returned outputs.
-      last_h_fw = states_fw[-1][0][0][-1].h
-      last_h_bw = states_bw[-1][0][0][-1].h
+
+      if 'attn_length' not in self.hparams.values():
+        last_h_fw = states_fw[-1][-1].h
+        last_h_bw = states_bw[-1][-1].h
+      else:
+        last_h_fw = states_fw[-1][0][0][-1].h
+        last_h_bw = states_bw[-1][0][0][-1].h
 
     return tf.concat([last_h_fw, last_h_bw], 1)
 

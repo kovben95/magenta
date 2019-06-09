@@ -52,6 +52,9 @@ flags.DEFINE_integer(
     'checkpoints_to_keep', 100,
     'Maximum number of checkpoints to keep in `train` mode or 0 for infinite.')
 flags.DEFINE_integer(
+    'checkpoint_interval', 600,
+    'Number of secs to create a checkpoint..')
+flags.DEFINE_integer(
     'keep_checkpoint_every_n_hours', 1,
     'In addition to checkpoints_to_keep, keep a checkpoint every N hours.')
 flags.DEFINE_string(
@@ -211,7 +214,7 @@ def train(train_dir,
           logdir=train_dir,
           scaffold=scaffold,
           hooks=hooks,
-          save_checkpoint_secs=600,
+          save_checkpoint_secs=FLAGS.checkpoint_interval,
           master=master,
           is_chief=is_chief)
 
@@ -243,7 +246,7 @@ def evaluate(train_dir,
         train_dir,
         eval_ops=eval_op,
         hooks=hooks,
-        eval_interval_secs=600,
+        eval_interval_secs=FLAGS.checkpoint_interval,
         master=master)
 
 

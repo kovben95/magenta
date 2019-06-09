@@ -260,33 +260,9 @@ CONFIG_MAP['flat-trio_16bar'] = Config(
         HParams(
             batch_size=256,
             max_seq_len=256,
-            z_size=128,
-            enc_rnn_size=[128, 128],
-            dec_rnn_size=[128, 128, 128],
-        )),
-    note_sequence_augmenter=None,
-    data_converter=trio_16bar_converter,
-    train_examples_path=None,
-    eval_examples_path=None,
-)
-
-CONFIG_MAP['attention-trio_16bar'] = Config(
-    model=MusicVAE(
-        lstm_models.BidirectionalLstmEncoder(),
-        lstm_models.MultiOutCategoricalLstmDecoder(
-            output_depths=[
-                90,  # melody
-                90,  # bass
-                512,  # drums
-            ])),
-    hparams=merge_hparams(
-        lstm_models.get_default_hparams(),
-        HParams(
-            batch_size=64,
-            max_seq_len=64,
-            z_size=64,
-            enc_rnn_size=[16, 16],
-            dec_rnn_size=[16, 16, 16],
+            z_size=512,
+            enc_rnn_size=[2048, 2048],
+            dec_rnn_size=[2048, 2048, 2048],
         )),
     note_sequence_augmenter=None,
     data_converter=trio_16bar_converter,
@@ -648,32 +624,97 @@ CONFIG_MAP['groovae_2bar_hits_control_tfds'] = Config(
     tfds_name='groove/2bar-midionly'
 )
 
-CONFIG_MAP['attention-vae'] = Config(
+CONFIG_MAP['attention-128-trio_16bar'] = Config(
     model=MusicVAE(
         lstm_models.BidirectionalLstmEncoder(),
-        lstm_models.HierarchicalLstmDecoder(
-            lstm_models.SplitMultiOutLstmDecoder(
-                core_decoders=[
-                    lstm_models.CategoricalLstmDecoder(),
-                    lstm_models.CategoricalLstmDecoder(),
-                    lstm_models.CategoricalLstmDecoder()],
-                output_depths=[
-                    90,  # melody
-                    90,  # bass
-                    512,  # drums
-                ]),
-            level_lengths=[16, 16],
-            disable_autoregression=True)),
+        lstm_models.MultiOutCategoricalLstmDecoder(
+            output_depths=[
+                90,  # melody
+                90,  # bass
+                512,  # drums
+            ])),
     hparams=merge_hparams(
         lstm_models.get_default_hparams(),
         HParams(
-            batch_size=256,
-            max_seq_len=256,
-            z_size=512,
-            enc_rnn_size=[2048, 2048],
-            dec_rnn_size=[1024, 1024],
-            free_bits=256,
-            max_beta=0.2,
+            batch_size=512,
+            max_seq_len=128,
+            z_size=64,
+            enc_rnn_size=[128, 128],
+            dec_rnn_size=[128, 128, 128],
+            attn_length=60,
+        )),
+    note_sequence_augmenter=None,
+    data_converter=trio_16bar_converter,
+    train_examples_path=None,
+    eval_examples_path=None,
+)
+
+CONFIG_MAP['attention-64-trio_16bar'] = Config(
+    model=MusicVAE(
+        lstm_models.BidirectionalLstmEncoder(),
+        lstm_models.MultiOutCategoricalLstmDecoder(
+            output_depths=[
+                90,  # melody
+                90,  # bass
+                512,  # drums
+            ])),
+    hparams=merge_hparams(
+        lstm_models.get_default_hparams(),
+        HParams(
+            batch_size=512,
+            max_seq_len=64,
+            z_size=32,
+            enc_rnn_size=[64, 64],
+            dec_rnn_size=[64, 64, 64],
+            attn_length=40,
+        )),
+    note_sequence_augmenter=None,
+    data_converter=trio_16bar_converter,
+    train_examples_path=None,
+    eval_examples_path=None,
+)
+
+CONFIG_MAP['no-attention-128-trio_16bar'] = Config(
+    model=MusicVAE(
+        lstm_models.BidirectionalLstmEncoder(),
+        lstm_models.MultiOutCategoricalLstmDecoder(
+            output_depths=[
+                90,  # melody
+                90,  # bass
+                512,  # drums
+            ])),
+    hparams=merge_hparams(
+        lstm_models.get_default_hparams(),
+        HParams(
+            batch_size=512,
+            max_seq_len=128,
+            z_size=64,
+            enc_rnn_size=[128, 128],
+            dec_rnn_size=[128, 128, 128],
+        )),
+    note_sequence_augmenter=None,
+    data_converter=trio_16bar_converter,
+    train_examples_path=None,
+    eval_examples_path=None,
+)
+
+CONFIG_MAP['no-attention-64-trio_16bar'] = Config(
+    model=MusicVAE(
+        lstm_models.BidirectionalLstmEncoder(),
+        lstm_models.MultiOutCategoricalLstmDecoder(
+            output_depths=[
+                90,  # melody
+                90,  # bass
+                512,  # drums
+            ])),
+    hparams=merge_hparams(
+        lstm_models.get_default_hparams(),
+        HParams(
+            batch_size=512,
+            max_seq_len=64,
+            z_size=32,
+            enc_rnn_size=[64, 64],
+            dec_rnn_size=[64, 64, 64],
         )),
     note_sequence_augmenter=None,
     data_converter=trio_16bar_converter,
