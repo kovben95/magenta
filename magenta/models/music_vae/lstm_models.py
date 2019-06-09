@@ -175,12 +175,8 @@ class BidirectionalLstmEncoder(base_model.BaseEncoder):
       # Note we access the outputs (h) from the states since the backward
       # ouputs are reversed to the input order in the returned outputs.
 
-      if 'attn_length' not in self.hparams.values():
-        last_h_fw = states_fw[-1][-1].h
-        last_h_bw = states_bw[-1][-1].h
-      else:
-        last_h_fw = states_fw[-1][0][0][-1].h
-        last_h_bw = states_bw[-1][0][0][-1].h
+      last_h_fw = states_fw[-1][-1].h
+      last_h_bw = states_bw[-1][-1].h
 
     return tf.concat([last_h_fw, last_h_bw], 1)
 

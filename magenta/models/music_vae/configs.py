@@ -674,6 +674,32 @@ CONFIG_MAP['attention-64-trio_16bar'] = Config(
     eval_examples_path=None,
 )
 
+
+CONFIG_MAP['attention-16-trio_16bar'] = Config(
+    model=MusicVAE(
+        lstm_models.BidirectionalLstmEncoder(),
+        lstm_models.MultiOutCategoricalLstmDecoder(
+            output_depths=[
+                90,  # melody
+                90,  # bass
+                512,  # drums
+            ])),
+    hparams=merge_hparams(
+        lstm_models.get_default_hparams(),
+        HParams(
+            batch_size=512,
+            max_seq_len=32,
+            z_size=16,
+            enc_rnn_size=[16, 16],
+            dec_rnn_size=[16, 16, 16],
+            attn_length=40,
+        )),
+    note_sequence_augmenter=None,
+    data_converter=trio_16bar_converter,
+    train_examples_path=None,
+    eval_examples_path=None,
+)
+
 CONFIG_MAP['no-attention-128-trio_16bar'] = Config(
     model=MusicVAE(
         lstm_models.BidirectionalLstmEncoder(),
